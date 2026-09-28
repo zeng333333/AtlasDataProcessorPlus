@@ -22,6 +22,8 @@ class MainWindowController: NSWindowController, DataReaderServiceDelegate, NSSpl
     /// 唯一的通道详情视图控制器（所有通道共用）
     private var sharedChannelController: ChannelViewController!
     private var summaryViewController: SummaryViewController!
+    /// 汇总详情矩阵视图控制器（与统计汇总互斥显示）
+    private var summaryDetailViewController: SummaryDetailViewController!
     
     // UI 组件
     private var splitView: NSSplitView!
@@ -63,10 +65,15 @@ class MainWindowController: NSWindowController, DataReaderServiceDelegate, NSSpl
         }
     }
     private var autoScroll: Bool = true
-    private var showFailOnly: Bool = false
+    private var showFailOnly: Bool = true
     private var isSummaryVisible: Bool = true
     /// 控制面板是否折叠（从配置恢复）
     private var isPanelCollapsed: Bool = AppConfig.shared.controlPanelCollapsed
+    /// 汇总显示模式：统计 / 详情（默认详情）
+    private enum SummaryMode { case stats, detail }
+    private var summaryMode: SummaryMode = .detail
+    /// 控制面板标题条上的汇总模式切换控件
+    private var summaryModeSegmented: NSSegmentedControl!
     
     // ✅ 添加无参数初始化方法
     convenience init() {
@@ -134,7 +141,7 @@ class MainWindowController: NSWindowController, DataReaderServiceDelegate, NSSpl
 
         // 延迟设置分割比例，确保视图布局完成后再设置
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            self.splitView.setPosition(220, ofDividerAt: 0)
+            self.applySummaryVisibility()
     }
 
     }
@@ -168,18 +175,29 @@ class MainWindowController: NSWindowController, DataReaderServiceDelegate, NSSpl
         // 添加到内容视图
         contentView.addSubview(splitView)
         
-        // 左侧：汇总信息
-        // 创建一个容器视图
+        // 左侧：汇总信息容器（状态一：统计汇总[可隐藏] + 右侧通道详情）
         let summaryView = NSView()
         summaryViewController = SummaryViewController()
-        // 设置反向引用，方便通信
         summaryViewController.mainWindowController = self
         summaryView.addSubview(summaryViewController.view)
         summaryViewController.view.frame = summaryView.bounds
-        // 允许视图随容器大小变化
         summaryViewController.view.autoresizingMask = [.width, .height]
         // 将容器添加到分割视图
         splitView.addSubview(summaryView)
+
+        // 汇总详情矩阵（状态二：覆盖整个分割视图区域，完全替代汇总信息与通道详情）
+        summaryDetailViewController = SummaryDetailViewController()
+        summaryDetailViewController.mainWindowController = self
+        summaryDetailViewController.view.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(summaryDetailViewController.view, positioned: .above, relativeTo: splitView)
+        // 视图已加载，同步初始过滤状态（默认勾选"只显示FAIL行"）
+        summaryDetailViewController.showFailOnly = showFailOnly
+        NSLayoutConstraint.activate([
+            summaryDetailViewController.view.topAnchor.constraint(equalTo: splitView.topAnchor),
+            summaryDetailViewController.view.leadingAnchor.constraint(equalTo: splitView.leadingAnchor),
+            summaryDetailViewController.view.trailingAnchor.constraint(equalTo: splitView.trailingAnchor),
+            summaryDetailViewController.view.bottomAnchor.constraint(equalTo: splitView.bottomAnchor),
+        ])
         
         // 右侧：通道详情区域（通道选择器 + 共享表格）
         let rightView = NSView()
@@ -255,6 +273,10 @@ class MainWindowController: NSWindowController, DataReaderServiceDelegate, NSSpl
             statusBar.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
             statusBar.heightAnchor.constraint(equalToConstant: 20)
         ])
+
+        // 应用汇总面板初始可见状态（默认隐藏）与汇总模式初始状态（默认详情）
+        applySummaryVisibility()
+        applySummaryMode()
     }
     
     private func setupControlView() {
@@ -312,9 +334,9 @@ class MainWindowController: NSWindowController, DataReaderServiceDelegate, NSSpl
         spacer.translatesAutoresizingMaskIntoConstraints = false
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
-        // 标题行：箭头 + 标题 ......... 只显示FAIL行 + 打开历史数据处理（折叠后仍可见）
+        // 标题行：箭头 + 标题 + 汇总模式切换 ......... 只显示FAIL行 + 打开历史数据处理（折叠后仍可见）
         let titleStack = ClickThroughStackView(views: [
-            disclosureButton, titleTextButton, spacer,
+            disclosureButton, titleTextButton, summaryModeSegmented!, spacer,
             showFailOnlyCheckbox!, openHistoryButton!
         ])
         titleStack.orientation = .horizontal
@@ -516,7 +538,7 @@ class MainWindowController: NSWindowController, DataReaderServiceDelegate, NSSpl
         autoScrollCheckbox.translatesAutoresizingMaskIntoConstraints = false
 
         showFailOnlyCheckbox = NSButton(checkboxWithTitle: "只显示FAIL行", target: self, action: #selector(showFailOnlyChanged))
-        showFailOnlyCheckbox.state = .off
+        showFailOnlyCheckbox.state = .on
         showFailOnlyCheckbox.translatesAutoresizingMaskIntoConstraints = false
 
         clearButton = NSButton(title: "清除所有数据", target: self, action: #selector(clearAllData))
@@ -528,6 +550,18 @@ class MainWindowController: NSWindowController, DataReaderServiceDelegate, NSSpl
         toggleSummaryButton.bezelStyle = .rounded
         toggleSummaryButton.font = NSFont.systemFont(ofSize: 12)
         toggleSummaryButton.translatesAutoresizingMaskIntoConstraints = false
+
+        // 汇总模式切换（统计汇总 / 汇总详情），放在控制面板标题条
+        summaryModeSegmented = NSSegmentedControl(
+            labels: ["汇总信息", "汇总详情"],
+            trackingMode: .selectOne,
+            target: self,
+            action: #selector(summaryModeChanged(_:))
+        )
+        summaryModeSegmented.selectedSegment = (summaryMode == .detail) ? 1 : 0
+        summaryModeSegmented.font = NSFont.systemFont(ofSize: 11)
+        summaryModeSegmented.translatesAutoresizingMaskIntoConstraints = false
+        summaryModeSegmented.setAccessibilityLabel("切换汇总显示模式")
 
         // 固定宽度项：路径框 300（超宽时截断显示头部），行数输入框 60
         pathLabel.widthAnchor.constraint(equalToConstant: 300).isActive = true
@@ -559,6 +593,7 @@ class MainWindowController: NSWindowController, DataReaderServiceDelegate, NSSpl
         for (_, channel) in channels {
             channel.status = .stopped
             summaryViewController.updateChannelStats(channel)
+            summaryDetailViewController.updateChannelStats(channel)
         }
         
         statusBar.stringValue = "监控已停止"
@@ -603,6 +638,8 @@ class MainWindowController: NSWindowController, DataReaderServiceDelegate, NSSpl
         showFailOnly = showFailOnlyCheckbox.state == .on
         sharedChannelController.showFailOnly = showFailOnly
         sharedChannelController.updateTable()
+        // 同步控制汇总详情矩阵（只显示存在FAIL的测试项行）
+        summaryDetailViewController.showFailOnly = showFailOnly
         statusBar.stringValue = showFailOnly ? "已启用只显示FAIL行模式" : "已启用显示所有行模式"
     }
     
@@ -612,23 +649,52 @@ class MainWindowController: NSWindowController, DataReaderServiceDelegate, NSSpl
         }
         sharedChannelController.updateTable()
         summaryViewController.clearAll()
+        summaryDetailViewController.clearAll()
         statusBar.stringValue = "所有数据已清除"
     }
     
     @objc private func toggleSummaryVisibility() {
         isSummaryVisible = !isSummaryVisible
-        
+        applySummaryVisibility()
+    }
+
+    /// 根据 isSummaryVisible 状态应用汇总面板的显示/隐藏与按钮标题
+    private func applySummaryVisibility() {
+        guard let summaryView = splitView.subviews.first else { return }
         if isSummaryVisible {
-            splitView.subviews[0].isHidden = false
+            summaryView.isHidden = false
             toggleSummaryButton.title = "隐藏汇总"
             splitView.setPosition(220, ofDividerAt: 0)
         } else {
-            splitView.subviews[0].isHidden = true
+            summaryView.isHidden = true
             toggleSummaryButton.title = "显示汇总"
             splitView.setPosition(0, ofDividerAt: 0)
         }
     }
-    
+
+    /// 汇总模式切换：统计汇总 <-> 汇总详情（互斥显示）
+    @objc private func summaryModeChanged(_ sender: NSSegmentedControl) {
+        summaryMode = (sender.selectedSegment == 1) ? .detail : .stats
+        applySummaryMode()
+    }
+
+    /// 根据 summaryMode 切换两种状态：
+    /// 状态一（stats）：splitView 布局 = 汇总信息（可隐藏）+ 通道详情
+    /// 状态二（detail）：仅显示汇总详情矩阵，完全替代汇总信息与通道详情
+    private func applySummaryMode() {
+        guard summaryViewController != nil, summaryDetailViewController != nil else { return }
+        let isDetail = (summaryMode == .detail)
+        summaryDetailViewController.view.isHidden = !isDetail
+        splitView.isHidden = isDetail
+        // "隐藏汇总"按钮仅在状态一有意义
+        if toggleSummaryButton != nil {
+            toggleSummaryButton.isEnabled = !isDetail
+        }
+        if !isDetail {
+            applySummaryVisibility()
+        }
+    }
+
     @objc private func updateStatus() {
         let activeChannels = channels.count
         
@@ -669,6 +735,7 @@ class MainWindowController: NSWindowController, DataReaderServiceDelegate, NSSpl
             
             // 更新汇总统计
             self.summaryViewController.updateChannelStats(channel)
+            self.summaryDetailViewController.updateChannelStats(channel)
         }
     }
     
@@ -676,6 +743,7 @@ class MainWindowController: NSWindowController, DataReaderServiceDelegate, NSSpl
         DispatchQueue.main.async {
             // 更新汇总统计
             self.summaryViewController.updateChannelStats(channel)
+            self.summaryDetailViewController.updateChannelStats(channel)
             
             if status == .ended {
                 self.statusBar.stringValue = "通道 \(channel.name) 测试结束"
@@ -687,6 +755,10 @@ class MainWindowController: NSWindowController, DataReaderServiceDelegate, NSSpl
         DispatchQueue.main.async {
             let key = channel.name
             self.summaryViewController.updateChannelStats(channel)
+            // 汇总详情只展示新一轮数据：以当前 running 通道整体重建矩阵，
+            // 上一轮有、本轮未参与的通道（ended）不再出现；单通道详情的历史保留不受影响
+            let runningChannels = service.getChannels().filter { $0.status == .running }
+            self.summaryDetailViewController.resetForNewRound(runningChannels: runningChannels)
             self.statusBar.stringValue = "通道 \(channel.name) 开始新一轮测试，数据已清空"
             
             // 如果清空的是当前选中的通道，刷新表格
@@ -792,9 +864,12 @@ extension MainWindowController: NSWindowDelegate {
 /// 用于控制面板标题条的弹性间距，使整条标题条空白处均可点击折叠。
 private class ClickThroughView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? {
-        guard !isHidden, alphaValue > 0.01, bounds.contains(point) else { return nil }
+        guard !isHidden, alphaValue > 0.01, let superview = superview else { return nil }
+        // point 在父视图坐标系，先转换到自身坐标系再做判断
+        let localPoint = convert(point, from: superview)
+        guard bounds.contains(localPoint) else { return nil }
         for subview in subviews.reversed() {
-            if let hit = subview.hitTest(convert(point, to: subview)) {
+            if let hit = subview.hitTest(localPoint) {
                 return hit
             }
         }
@@ -806,9 +881,12 @@ private class ClickThroughView: NSView {
 /// 仅栈内实际控件响应鼠标事件。
 private class ClickThroughStackView: NSStackView {
     override func hitTest(_ point: NSPoint) -> NSView? {
-        guard !isHidden, alphaValue > 0.01, bounds.contains(point) else { return nil }
+        guard !isHidden, alphaValue > 0.01, let superview = superview else { return nil }
+        // point 在父视图坐标系，先转换到自身坐标系再做判断
+        let localPoint = convert(point, from: superview)
+        guard bounds.contains(localPoint) else { return nil }
         for subview in subviews.reversed() {
-            if let hit = subview.hitTest(convert(point, to: subview)) {
+            if let hit = subview.hitTest(localPoint) {
                 return hit
             }
         }

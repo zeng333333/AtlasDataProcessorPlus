@@ -29,6 +29,7 @@
 		AFA139692F2BAF9C006538C2 /* MainWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA139662F2BAF9C006538C2 /* MainWindowController.swift */; };
 		AFA1396C2F2BAF9C006538C2 /* ChannelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA139672F2BAF9C006538C2 /* ChannelViewController.swift */; };
 		AFA1396F2F2BAF9C006538C2 /* SummaryViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA139682F2BAF9C006538C2 /* SummaryViewController.swift */; };
+		AF3D00012FA1000000000001 /* SummaryDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF3D00002FA1000000000001 /* SummaryDetailViewController.swift */; };
 		AFA139742F2BAFB7006538C2 /* DataReaderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA139732F2BAFB7006538C2 /* DataReaderService.swift */; };
 		AFA139802F2BA889006538C2 /* DetailModalController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA1397F2F2BA889006538C2 /* DetailModalController.swift */; };
 		AFA139802F2BB17E006538C2 /* NSVStackLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA1397F2F2BB17E006538C2 /* NSVStackLayout.swift */; };
@@ -79,6 +80,7 @@
 		AFA139662F2BAF9C006538C2 /* MainWindowController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MainWindowController.swift; sourceTree = "<group>"; };
 		AFA139672F2BAF9C006538C2 /* ChannelViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ChannelViewController.swift; sourceTree = "<group>"; };
 		AFA139682F2BAF9C006538C2 /* SummaryViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SummaryViewController.swift; sourceTree = "<group>"; };
+		AF3D00002FA1000000000001 /* SummaryDetailViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SummaryDetailViewController.swift; sourceTree = "<group>"; };
 		AFA139732F2BAFB7006538C2 /* DataReaderService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DataReaderService.swift; sourceTree = "<group>"; };
 		AFA1397F2F2BA889006538C2 /* DetailModalController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DetailModalController.swift; sourceTree = "<group>"; };
 		AFA1397F2F2BB17E006538C2 /* NSVStackLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NSVStackLayout.swift; sourceTree = "<group>"; };
@@ -194,6 +196,7 @@
 				AFA139672F2BAF9C006538C2 /* ChannelViewController.swift */,
 				AFA139662F2BAF9C006538C2 /* MainWindowController.swift */,
 				AFA139682F2BAF9C006538C2 /* SummaryViewController.swift */,
+				AF3D00002FA1000000000001 /* SummaryDetailViewController.swift */,
 				AFA1397F2F2BB17E006538C2 /* NSVStackLayout.swift */,
 				AFA1398F2F324459006538C2 /* HistoryWindowController.swift */,
 				AFB318DD2FF6C09900E51637 /* TabbedToolWindowController.swift */,
@@ -365,6 +368,7 @@
 				AFA1396C2F2BAF9C006538C2 /* ChannelViewController.swift in Sources */,
 				AF9DEF0A2F76C536009A399B /* HistoryWindowController+Actions.swift in Sources */,
 				AFA1396F2F2BAF9C006538C2 /* SummaryViewController.swift in Sources */,
+				AF3D00012FA1000000000001 /* SummaryDetailViewController.swift in Sources */,
 				AFA139922F324D1F006538C2 /* AtlasDataProcessor.swift in Sources */,
 				AF9DEF082F76C536009A399B /* HistoryWindowController+UI.swift in Sources */,
 				AFA139692F2BAF9C006538C2 /* MainWindowController.swift in Sources */,
@@ -552,7 +556,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
-				MARKETING_VERSION = 3.2;
+				MARKETING_VERSION = 3.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.apple.bsd.AtlasDataProcessorPlus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -582,7 +586,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
-				MARKETING_VERSION = 3.2;
+				MARKETING_VERSION = 3.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.apple.bsd.AtlasDataProcessorPlus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

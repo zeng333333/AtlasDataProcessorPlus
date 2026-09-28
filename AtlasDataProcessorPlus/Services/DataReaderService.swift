@@ -302,6 +302,9 @@ class DataReaderService {
             for reader in monitored.values {
                 let key = reader.channel.name
                 if !foundChannels.contains(key) {
+                    // 边沿去重：fileDisappeared 已为 true 说明此前已通知过结束，
+                    // 不再每 5 秒重复派发 .ended 回调（否则 UI 侧会反复收到已结束通道）
+                    if reader.fileDisappeared { continue }
                     let channel = reader.channel
                     reader.reset()
                     reader.fileDisappeared = true

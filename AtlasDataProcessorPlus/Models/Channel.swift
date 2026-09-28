@@ -16,6 +16,18 @@ class Channel: Comparable {
     var totalCount: Int = 0
     var lastUpdate: String = "--"
     var testData: [TestData] = []
+    /// 按测试项名缓存最新一条记录（同一次测试同一项可能重复出现，取最新值）
+    /// 用于汇总详情矩阵视图按 testName O(1) 查找，避免每个单元格线性扫描
+    private var _latestTestByName: [String: TestData]?
+    var latestTestByName: [String: TestData] {
+        if let cached = _latestTestByName { return cached }
+        var map: [String: TestData] = [:]
+        for data in testData {
+            map[data.testName] = data // 后出现的覆盖先出现的，得到最新值
+        }
+        _latestTestByName = map
+        return map
+    }
     var maxRows: Int {
         didSet {
             AppConfig.shared.channelMaxRows = maxRows
@@ -51,6 +63,7 @@ class Channel: Comparable {
     
     func addTestData(_ data: TestData) {
         testData.append(data)
+        _latestTestByName = nil // 数据变更，缓存失效
         totalCount += 1
         
         if data.status == "PASS" {
@@ -78,6 +91,7 @@ class Channel: Comparable {
     
     func clearData() {
         testData.removeAll()
+        _latestTestByName = nil
         failCount = 0
         passCount = 0
         totalCount = 0
