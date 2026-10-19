@@ -333,11 +333,13 @@ extension SummaryDetailViewController: NSTableViewDelegate {
         let channelName = columnId.rawValue.replacingOccurrences(of: "ch_", with: "")
         if let channel = dataSource.first(where: { $0.name == channelName }),
            let data = channel.latestTestByName[testName] {
-            textField.stringValue = data.measurementValue
             if data.status == "FAIL" {
+                // FAIL 且无测量值时回退显示 "FAIL"，避免单元格全空导致无法定位失败通道
+                textField.stringValue = data.measurementValue.isEmpty ? "FAIL" : data.measurementValue
                 textField.textColor = NSColor.systemRed
                 textField.font = NSFont.systemFont(ofSize: 12, weight: .bold)
             } else {
+                textField.stringValue = data.measurementValue
                 textField.textColor = NSColor.labelColor
                 textField.font = NSFont.systemFont(ofSize: 12)
             }
