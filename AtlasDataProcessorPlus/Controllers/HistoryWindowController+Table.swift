@@ -50,9 +50,10 @@ extension HistoryWindowController: NSTableViewDelegate, NSTableViewDataSource {
             cell = NSTableCellView()
             cell.identifier = cellIdentifier
             
-            let textField = NSTextField()
+            let textField = ContextMenuTextField()
             textField.isEditable = false
-            textField.isSelectable = true
+            // 不可选中：避免左键进入 field editor 后右键事件被 NSTextView 接走
+            textField.isSelectable = false
             textField.isBezeled = false
             textField.drawsBackground = false
             textField.font = NSFont.systemFont(ofSize: 11)
@@ -283,5 +284,22 @@ class ContextMenuTableView: NSTableView {
             return
         }
         super.keyDown(with: event)
+    }
+}
+
+// MARK: - 单元格文本控件（右键转发给所在表格，避免弹出系统文本菜单）
+class ContextMenuTextField: NSTextField {
+    override func menu(for event: NSEvent) -> NSMenu? {
+        // 向上查找所属表格，转成表格坐标后取行号并复用表格的菜单构造逻辑
+        var view: NSView? = superview
+        while let current = view {
+            if let table = current as? ContextMenuTableView,
+               let menu = table.contextMenuHandler?(table.row(at: table.convert(event.locationInWindow, from: nil))) {
+                return menu
+            }
+            view = current.superview
+        }
+        // 不在表格行上时不回退到系统文本菜单
+        return nil
     }
 }
