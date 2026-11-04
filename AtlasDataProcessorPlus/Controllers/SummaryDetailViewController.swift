@@ -104,7 +104,7 @@ class SummaryDetailViewController: NSViewController {
         testNameColumn.title = "测试项"
         testNameColumn.width = 300
         testNameColumn.minWidth = 100
-        testNameColumn.maxWidth = 600
+        testNameColumn.maxWidth = 1200
         tableView.addTableColumn(testNameColumn)
 
         let unitColumn = NSTableColumn(identifier: unitColumnId)
