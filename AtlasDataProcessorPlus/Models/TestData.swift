@@ -26,7 +26,9 @@ class TestData {
     
     static func parse(from csvLine: String) -> TestData? {
         let components = csvLine.components(separatedBy: ",")
-        if components.count < 17 {
+        // 只需保证状态列（索引 12）存在即可；字段不足 17 的记录（如失败信息跨行、含引号）
+        // 也需要保留，否则会静默丢失 FAIL 数据
+        if components.count < 13 {
             return nil
         }
         
