@@ -675,40 +675,63 @@ private extension AtlasDataProcessor {
         
         var cleanedTime = timeStr
         
-        // 预处理：移除中文字符
-        if cleanedTime.contains("月") {
-            cleanedTime = cleanedTime.replacingOccurrences(of: "月", with: "")
-        }
-        if cleanedTime.contains("上午") {
-            cleanedTime = cleanedTime.replacingOccurrences(of: "上午", with: "AM")
-        }
-        if cleanedTime.contains("下午") {
-            cleanedTime = cleanedTime.replacingOccurrences(of: "下午", with: "PM")
-        }
+        // 预处理1：中文时段与月份归一化
+        // 支持 "6月 18 2025 4:24:34.3390 下午" 这类其他平台的格式
+        cleanedTime = cleanedTime.replacingOccurrences(of: "上午", with: "AM")
+        cleanedTime = cleanedTime.replacingOccurrences(of: "下午", with: "PM")
+        cleanedTime = cleanedTime.replacingOccurrences(
+            of: #"(\d{1,2})\s*月"#,
+            with: "$1",
+            options: .regularExpression
+        )
+        cleanedTime = cleanedTime.replacingOccurrences(of: "月", with: "")
         
-        // 移除毫秒部分（如果存在）
-        if let dotRange = cleanedTime.range(of: ".") {
-            cleanedTime = String(cleanedTime[..<dotRange.lowerBound])
-        }
+        // 预处理2：只移除小数秒（含其后的空白），保留末尾的 AM/PM
+        // 例："Nov 16 2026 1:14:29.2130 PM" -> "Nov 16 2026 1:14:29 PM"
+        cleanedTime = cleanedTime.replacingOccurrences(
+            of: #"\.\d+\s*"#,
+            with: " ",
+            options: .regularExpression
+        )
+        
+        // 预处理3：压缩多余空白，兼容单/双位月日与不规则空格
+        cleanedTime = cleanedTime.replacingOccurrences(
+            of: #"\s+"#,
+            with: " ",
+            options: .regularExpression
+        ).trimmingCharacters(in: .whitespaces)
         
         // 调试信息
         #if DEBUG
         print("尝试转换时间: \(cleanedTime)")
         #endif
         
-        // 方法1：使用NSDateFormatter
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
+        // 含 AM/PM 时只按 12 小时制解析，避免 PM 丢失后被 24 小时制格式静默误判
+        let hasMeridiem = cleanedTime.hasSuffix("AM") || cleanedTime.hasSuffix("PM")
         
-        // 尝试多种可能的格式
-        let formats = [
-            "MMM dd yyyy h:mm:ss a",  // Jan 19 2026 7:53:45 PM
+        let twelveHourFormats = [
+            "MMM d yyyy h:mm:ss a",   // Jun 18 2025 4:24:34 PM
+            "MMM dd yyyy h:mm:ss a",  // Nov 16 2026 1:14:29 PM
+            "M d yyyy h:mm:ss a",     // 6 18 2025 4:24:34 PM（中文月份转数字）
+            "MM/dd/yyyy h:mm:ss a",
+            "dd/MM/yyyy h:mm:ss a"
+        ]
+        
+        let twentyFourHourFormats = [
             "yyyy-MM-dd HH:mm:ss",      // 2025-06-18 16:36:40
+            "yyyy/MM/dd HH:mm:ss",      // 2025/06/18 16:36:40
             "MM/dd/yyyy HH:mm:ss",      // 01/19/2026 19:53:45
             "dd/MM/yyyy HH:mm:ss",      // 19/01/2026 19:53:45
+            "MMM d yyyy HH:mm:ss",      // Jun 18 2025 16:36:40
             "MMM dd yyyy HH:mm:ss",     // Jan 19 2026 19:53:45
-            "yyyy-MM-dd'T'HH:mm:ss"      // ISO格式
+            "yyyy-MM-dd'T'HH:mm:ss"     // ISO格式
         ]
+        
+        let formats = hasMeridiem ? twelveHourFormats : twentyFourHourFormats
+        
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.isLenient = false
         
         for format in formats {
             formatter.dateFormat = format
@@ -722,39 +745,7 @@ private extension AtlasDataProcessor {
             }
         }
         
-        // 方法2：使用正则表达式提取时间组件并手动构建
-        // 尝试匹配 "Jan 19 2026 7:53:45 PM" 格式
-        let regexPattern = #"(\w{3})\s+(\d{1,2})\s+(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})\s+(AM|PM)"#
-        if let regex = try? NSRegularExpression(pattern: regexPattern, options: []),
-           let match = regex.firstMatch(in: cleanedTime, range: NSRange(cleanedTime.startIndex..., in: cleanedTime)) {
-            
-            // 提取组件
-            let monthStr = (cleanedTime as NSString).substring(with: match.range(at: 1))
-            let day = (cleanedTime as NSString).substring(with: match.range(at: 2))
-            let year = (cleanedTime as NSString).substring(with: match.range(at: 3))
-            let hour = (cleanedTime as NSString).substring(with: match.range(at: 4))
-            let minute = (cleanedTime as NSString).substring(with: match.range(at: 5))
-            let second = (cleanedTime as NSString).substring(with: match.range(at: 6))
-            let meridian = (cleanedTime as NSString).substring(with: match.range(at: 7))
-            
-            // 构建标准格式的日期字符串
-            let standardFormat = "\(monthStr) \(day) \(year) \(hour):\(minute):\(second) \(meridian)"
-            
-            // 使用固定格式尝试解析
-            let standardFormatter = DateFormatter()
-            standardFormatter.locale = Locale(identifier: "en_US_POSIX")
-            standardFormatter.dateFormat = "MMM dd yyyy h:mm:ss a"
-            
-            if let date = standardFormatter.date(from: standardFormat) {
-                standardFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-                let result = standardFormatter.string(from: date)
-                #if DEBUG
-                print("正则成功转换: \(result)")
-                #endif
-                return result
-            }
-        }
-        
+        // 兜底：无法识别时原样返回，避免数据丢失
         print("时间格式转换失败: \(timeInput)")
         return timeInput
     }
